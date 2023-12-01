@@ -1,5 +1,14 @@
 {
     "selector": "source.cs | source.cake",
+    // The binary to use for mono. If null, use the plugin default. If non-null the
+    // value is used as the binary file, e.g. "mono" or
+    // "/Library/Frameworks/Mono.framework/Versions/Current/Commands/mono"
+    "mono_binary" : null,
+    // Directory to start the language server OmniSharp.exe in
+    // Setting this to the project directly allow .sln files from
+    // a project to be loaded. Gets passed to OmniSharp.exe with --source:
+    // Solution or directory for OmniSharp to point at (defaults to current directory).
+    "omnisharp_source" : null,
     "env": {
         // TODO: Is this necessary on Windows/Linux?
         "FrameworkPathOverride": "${storage_path}/LSP-OmniSharp/.msbuild/Current"

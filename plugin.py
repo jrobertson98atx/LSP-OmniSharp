@@ -61,42 +61,98 @@ class OmniSharp(AbstractPlugin):
     @classmethod
     def binary_path(cls) -> str:
         if sublime.platform() == "windows":
-            return os.path.join(cls.basedir(), "OmniSharp.exe")
+            retval = os.path.join(cls.basedir(), "OmniSharp.exe")
         else:
-            return os.path.join(cls.basedir(), "omnisharp", "OmniSharp.exe")
+            retval = os.path.join(cls.basedir(), "omnisharp", "OmniSharp.exe")
+        return retval
 
     @classmethod
-    def get_command(cls) -> List[str]:
+    def get_command(cls, view) -> List[str]:
         settings = cls.get_settings()
         cmd = settings.get("command")
         if isinstance(cmd, list):
             return cmd
-        return getattr(cls, "get_{}_command".format(sublime.platform()))()
+        return getattr(cls, "get_{}_command".format(sublime.platform()))(view)
 
     @classmethod
-    def get_windows_command(cls) -> List[str]:
-        return [cls.binary_path(), "--languageserver"]
+    def get_omnisharp_source(cls, view):
+        # Project specific source directory for the server command line
+        omnisharp_source = cls.get_view_setting_value(view, "LSP-OmniSharp.omnisharp_source")
+
+        # Plugin-wide source directory for the server command line
+        if not omnisharp_source:
+            settings = cls.get_settings()
+            omnisharp_source = settings.get("omnisharp_source")
+
+        return omnisharp_source
 
     @classmethod
-    def get_osx_command(cls) -> List[str]:
-        return cls.get_linux_command()
+    def get_windows_command(cls, view) -> List[str]:
+        retval = [cls.binary_path(), "--languageserver"]
+        omnisharp_source = cls.get_omnisharp_source(view)
+        if omnisharp_source:
+            retval += ["--source", omnisharp_source]
+        return retval
 
     @classmethod
-    def mono_bin_path(cls) -> str:
-        return os.path.join(cls.basedir(), "bin", "mono")
+    def get_osx_command(cls, view) -> List[str]:
+        return cls.get_linux_command(view)
+
+    @classmethod
+    def mono_bin_plugin_path(cls) -> str:
+        retval = os.path.join(cls.basedir(), "bin", "mono")
+        return retval
+
+    @classmethod
+    def mono_bin_override_path(cls, view) -> str:
+
+        # Project specific mono binary override
+        retval = cls.get_view_setting_value(view, "LSP-OmniSharp.mono_binary")
+
+        # Plugin specific mono binary override
+        if not retval:
+            settings = cls.get_settings()
+            retval = settings.get("mono_binary")
+
+        # Ok to return None here
+        return retval
 
     @classmethod
     def mono_config_path(cls) -> str:
         return os.path.join(cls.basedir(), "etc", "config")
 
     @classmethod
-    def get_linux_command(cls) -> List[str]:
-        return [
-            cls.mono_bin_path(),
-            "--assembly-loader=strict",
-            "--config",
-            cls.mono_config_path()
-        ] + cls.get_windows_command()
+    def get_linux_command(cls, view) -> List[str]:
+        if cls.mono_bin_override_path(view):
+            retval = [ cls.mono_bin_override_path(view) ]
+
+        else:
+            retval = [ cls.mono_bin_plugin_path(),
+                        "--config",
+                        cls.mono_config_path()]
+
+        retval += ["--assembly-loader=strict"]
+        retval += cls.get_windows_command(view)
+
+        return retval
+
+    @classmethod
+    def get_view_setting_value(cls, view, param):
+        view_settings = view.settings()
+        retval = view_settings.get(param)
+
+        if retval is None:
+            return retval
+
+        window = view.window()
+        project_file_name = window.project_file_name()
+        if project_file_name is None:
+            return retval
+
+        project_dir = os.path.dirname(project_file_name)
+        retval = sublime.expand_variables(retval, {"projectdir" : project_dir})
+
+        return retval
 
     @classmethod
     def needs_update_or_installation(cls) -> bool:
@@ -119,7 +175,7 @@ class OmniSharp(AbstractPlugin):
                 f.extractall(cls.basedir())
             os.unlink(zipfile)
             if sublime.platform() != "windows":
-                os.chmod(cls.mono_bin_path(), 0o744)
+                os.chmod(cls.mono_bin_plugin_path(), 0o744)
             with open(os.path.join(cls.basedir(), "VERSION"), "w") as fp:
                 fp.write(version)
         except Exception:
@@ -134,10 +190,9 @@ class OmniSharp(AbstractPlugin):
         workspace_folders: List[WorkspaceFolder],
         configuration: ClientConfig
     ) -> Optional[str]:
-        configuration.command = cls.get_command()
+        configuration.command = cls.get_command(initiating_view)
+        print("LSP-OmniSharp: Server Command={}".format(configuration.command))
         return None
-
-    # -- commands from the server that should be handled client-side ----------
 
     def on_pre_server_command(
         self,
