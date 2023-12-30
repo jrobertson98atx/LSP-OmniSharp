@@ -98,10 +98,13 @@ At this point Sublime should recognize the built in Unity classes.
 
 Shortcomings:
 
-- When adding a new script in the Unity project you must redo step #3 above, i.e. run "Settings -> External Tools -> Regenerate project files". This will update the .csproj necessary.
+- When adding a new script in the Unity project you must redo step #3 above,
+i.e. run "Settings -> External Tools -> Regenerate project files". This will update the .csproj necessary. Then
+you'll need to restart the server by executing the "LSP: Restart Server" command.
 
 - The methods for UnityEngine.MonoBehavior don't show up as autocomplete options. It looks like this is because
 they are not actually overridden methods (since there's no `override` keyword) so OmniSharp doesn't
 recognize messages as valid completions.
 
-- The default editor for the Unity project is still Visual Studio since project files need to be generated. Sublime must be launched independently.
+- The default editor for the Unity project is still Visual Studio since project files need to be generated.
+Sublime must be launched independently.
